@@ -360,7 +360,10 @@ def install_strata_if_missing() -> None:
 def _copy_verified(src: Path, dst: Path) -> tuple[int, bool]:
     expected = src.stat().st_size
     dst.parent.mkdir(parents=True, exist_ok=True)
-    if dst.is_file() and dst.stat().st_size == expected:
+    # Copy mode must materialize symlinked input files into local storage.
+    if dst.is_symlink():
+        dst.unlink()
+    elif dst.is_file() and dst.stat().st_size == expected:
         return expected, False
     temp = dst.with_name(dst.name + ".part")
     temp.unlink(missing_ok=True)

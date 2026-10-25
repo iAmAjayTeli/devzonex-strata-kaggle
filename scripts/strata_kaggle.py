@@ -725,33 +725,47 @@ def upload_model_cache(data_dir: Path, username: str, slug: str, family: str, va
     if not license_confirmed:
         log("Skipped model upload. Confirm the model terms and enable the explicit license flag first.")
         return False
+    attached = find_attached_dataset(username, slug, "manifest.json")
+    if attached and not force:
+        try:
+            old = json.loads((attached / "manifest.json").read_text(encoding="utf-8"))
+            if (old.get("format") == "devzonex.strata-model-cache.v1"
+                    and old.get("model") == {"family": family, "variant": variant}):
+                old_entries = old.get("files", [])
+                cache_matches = bool(old_entries)
+                for item in old_entries:
+                    rel = PurePosixPath(item["relative_path"])
+                    if rel.is_absolute() or ".." in rel.parts:
+                        cache_matches = False
+                        break
+                    local_file = data_dir.joinpath(*rel.parts)
+                    if not local_file.is_file() or local_file.stat().st_size != int(item["size"]):
+                        cache_matches = False
+                        break
+                if cache_matches:
+                    log("Attached private model cache already matches the selected model; skipping duplicate upload.")
+                    return False
+        except Exception:
+            pass
+
     allowed_roots = {"models", "packs", "mtp"}
     files = sorted(
         p for p in data_dir.rglob("*")
-        if p.is_file() and not p.is_symlink() and not p.name.endswith(".part")
+        if p.is_file() and not p.name.endswith(".part")
         and p.relative_to(data_dir).parts and p.relative_to(data_dir).parts[0] in allowed_roots
     )
     if not files:
         raise RuntimeError("No model/packs/mtp files found under " + str(data_dir) + ".")
-    attached = find_attached_dataset(username, slug, "manifest.json")
     sizes = {p.relative_to(data_dir).as_posix(): p.stat().st_size for p in files}
-    if attached and not force:
-        try:
-            old = json.loads((attached / "manifest.json").read_text(encoding="utf-8"))
-            old_sizes = {x["relative_path"]: int(x["size"]) for x in old.get("files", [])}
-            if old_sizes == sizes and old.get("model") == {"family": family, "variant": variant}:
-                log("Private model dataset already matches local files; skipping upload.")
-                return False
-        except Exception:
-            pass
     stage = WORKING / "strata-model-dataset-stage"
     _clean_stage(stage)
     entries = []
     for number, path in enumerate(files, 1):
         relative = path.relative_to(data_dir).as_posix()
         name = f"{number:04d}__" + re.sub(r"[^A-Za-z0-9._-]+", "__", relative.replace("/", "__"))
-        (stage / name).symlink_to(path)
-        entries.append({"dataset_name": name, "relative_path": relative, "size": path.stat().st_size})
+        # Resolve input-mount symlinks so the Kaggle CLI sees the underlying file.
+        (stage / name).symlink_to(path.resolve())
+        entries.append({"dataset_name": name, "relative_path": relative, "size": sizes[relative]})
     manifest = {"format": "devzonex.strata-model-cache.v1",
                 "model": {"family": family, "variant": variant}, "files": entries}
     (stage / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -761,6 +775,7 @@ def upload_model_cache(data_dir: Path, username: str, slug: str, family: str, va
     log(f"Preparing {len(entries)} model files ({total / (1024**3):.2f} GiB) for private upload.")
     _upload_create_or_version(stage, username, slug, env, f"Update Strata model cache: {family}/{variant}")
     return True
+
 
 
 def upload_runtime_cache(username: str, slug: str, env: dict[str, str], force: bool = False) -> bool:

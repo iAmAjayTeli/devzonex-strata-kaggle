@@ -376,7 +376,16 @@ def _copy_verified(src: Path, dst: Path) -> tuple[int, bool]:
 
 
 def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
-                        family: str | None = None, variant: str | None = None) -> bool:
+                        family: str | None = None, variant: str | None = None,
+                        restore_mode: str = "copy") -> bool:
+    """Restore a private cache by copying files locally or symlinking to the Kaggle input mount.
+
+    'copy' duplicates bytes into local storage and is usually faster for model loading.
+    'symlink' avoids the extra local copy but may be slower because the engine reads the dataset mount.
+    Kaggle still has to make attached input dataset files available to the runtime.
+    """
+    if restore_mode not in {"copy", "symlink"}:
+        raise ValueError("restore_mode must be 'copy' or 'symlink'.")
     ds = find_attached_dataset(owner, slug, "manifest.json")
     if not ds:
         log("Model cache not attached; Strata will download the selected model on first launch.")
@@ -397,26 +406,57 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
     if not entries:
         raise RuntimeError("Model cache manifest is empty.")
     total = sum(int(e["size"]) for e in entries)
-    log("Restoring " + str(len(entries)) + " model files (" + f"{total / (1024**3):.2f} GiB" + ").")
+    log("Restoring " + str(len(entries)) + " model files (" + f"{total / (1024**3):.2f} GiB" + ") using " + restore_mode + " mode.")
     data_dir.mkdir(parents=True, exist_ok=True)
+
+    validated: list[tuple[Path, Path, int]] = []
+    for item in entries:
+        rel = PurePosixPath(item["relative_path"])
+        if rel.is_absolute() or ".." in rel.parts:
+            raise RuntimeError("Unsafe path in model manifest: " + str(rel))
+        src = ds / item["dataset_name"]
+        dst = data_dir.joinpath(*rel.parts)
+        size = int(item["size"])
+        if not src.is_file() or src.stat().st_size != size:
+            raise RuntimeError("Model cache file missing or size mismatch: " + item["dataset_name"])
+        validated.append((src, dst, size))
+
+    if restore_mode == "symlink":
+        created = 0
+        already_linked = 0
+        for src, dst, size in validated:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.is_symlink():
+                try:
+                    if dst.resolve(strict=True) == src.resolve(strict=True) and dst.stat().st_size == size:
+                        already_linked += 1
+                        continue
+                except OSError:
+                    pass
+            elif dst.exists():
+                if dst.is_file() and dst.stat().st_size == size:
+                    # Keep a valid existing local copy rather than replacing it with a link.
+                    continue
+                raise RuntimeError("Restore target already exists with unexpected content: " + str(dst))
+            dst.symlink_to(src.resolve())
+            created += 1
+        log(f"Model cache linked without copying model bytes: {created} links created, {already_linked} already linked.")
+        log("Note: Kaggle still stages the attached input dataset; symlink mode avoids only the extra copy to local storage.")
+        return True
+
     futures = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        for item in entries:
-            rel = PurePosixPath(item["relative_path"])
-            if rel.is_absolute() or ".." in rel.parts:
-                raise RuntimeError("Unsafe path in model manifest: " + str(rel))
-            src, dst = ds / item["dataset_name"], data_dir.joinpath(*rel.parts)
-            if not src.is_file() or src.stat().st_size != int(item["size"]):
-                raise RuntimeError("Model cache file missing or size mismatch: " + item["dataset_name"])
-            futures[pool.submit(_copy_verified, src, dst)] = item
+        for src, dst, _size in validated:
+            futures[pool.submit(_copy_verified, src, dst)] = src
         done = 0
         for future in concurrent.futures.as_completed(futures):
             future.result()
             done += 1
             if done == len(futures) or done % 3 == 0:
                 log("Model restore progress: " + str(done) + "/" + str(len(futures)) + " files.")
-    log("Model cache restored and size-verified.")
+    log("Model cache copied into local storage and size-verified.")
     return True
+
 
 
 def _cached_model_path(data_dir: Path, family: str, variant: str) -> Path | None:

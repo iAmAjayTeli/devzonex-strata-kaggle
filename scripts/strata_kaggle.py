@@ -405,10 +405,8 @@ def run_plan(family: str, variant: str, context: str, vision: str,
            *_model_source_args(data_dir, family, variant), "--context", context, "--vision", vision,
            "--mtp", "off", "--tune", "skip", "--access", "cloudflare",
            "--port", "8080", "--gpu", gpu_list]
-    result = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=300, check=False)
-    output = redact(result.stdout or "")
-    print(output, end="" if output.endswith("\n") else "\n", flush=True)
+    result = run_streaming(cmd, timeout=300, check=False)
+    output = result.stdout or ""
     if result.returncode:
         raise RuntimeError("Strata plan failed. Choose a supported family/model variant.")
     return output
@@ -421,10 +419,8 @@ def launch_strata(family: str, variant: str, context: str, vision: str,
            "--mtp", "off", "--tune", "skip", "--access", "cloudflare",
            "--port", "8080", "--gpu", gpu_list, "--yes", "--no-tui"]
     log("Launching Strata. First-time model/engine downloads may take a while.")
-    result = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=3600, check=False)
-    output = redact(result.stdout or "")
-    print(output, end="" if output.endswith("\n") else "\n", flush=True)
+    result = run_streaming(cmd, timeout=3600, check=False)
+    output = result.stdout or ""
     if result.returncode:
         raise RuntimeError("Strata launch failed. Inspect the redacted output above.")
     return output

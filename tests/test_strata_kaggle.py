@@ -1,10 +1,13 @@
 import hashlib
+import contextlib
+import io
+import sys
 import tempfile
 import tarfile
 import unittest
 from pathlib import Path
 
-from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet, _cached_model_path
+from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet, _cached_model_path, run_streaming
 
 
 class StrataKaggleTests(unittest.TestCase):
@@ -53,6 +56,17 @@ class StrataKaggleTests(unittest.TestCase):
             (model_dir / "model.gguf").write_bytes(b"model")
             found = _cached_model_path(root, "gyro", "gyro-s")
             self.assertEqual(found, model_dir)
+
+
+    def test_run_streaming_prints_subprocess_output(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            result = run_streaming(
+                [sys.executable, "-c", "print('progress-visible'); print('done')"],
+                timeout=10,
+            )
+        self.assertIn("progress-visible", buffer.getvalue())
+        self.assertIn("done", result.stdout)
 
     def test_open_code_snippet_has_provider_wrapper_and_no_key(self):
         value = opencode_config_snippet("https://sample.trycloudflare.com", "qwen3.8-flash-next-gyro-gyro-s")

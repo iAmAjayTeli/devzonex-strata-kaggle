@@ -9,6 +9,9 @@ import platform
 import posixpath
 import re
 import shutil
+import signal
+import queue
+import threading
 import subprocess
 import sys
 import tarfile
@@ -93,6 +96,95 @@ def install_kaggle_cli(env: dict[str, str] | None = None) -> None:
     run_command([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "kaggle"],
                 timeout=900, env=env)
     run_command(["kaggle", "--version"], timeout=60, env=env)
+
+
+def run_streaming(command: list[str], *, check: bool = True, timeout: int | None = None,
+                  env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    """Run a command while streaming stdout/stderr to the notebook, including CR progress bars."""
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
+        bufsize=8192, start_new_session=True,
+    )
+    if process.stdout is None:
+        raise RuntimeError("Could not capture process output.")
+    output_queue: queue.Queue[bytes | None] = queue.Queue()
+    captured: list[str] = []
+
+    def pump() -> None:
+        pending = bytearray()
+        try:
+            while True:
+                chunk = process.stdout.read1(4096)
+                if not chunk:
+                    break
+                pending.extend(chunk)
+                while True:
+                    split_at = next((i for i, byte in enumerate(pending) if byte in (10, 13)), None)
+                    if split_at is None:
+                        break
+                    separator = pending[split_at]
+                    piece = bytes(pending[:split_at + 1])
+                    del pending[:split_at + 1]
+                    # Combine CRLF into one newline event.
+                    if separator == 13 and pending[:1] == b"\\n":
+                        piece += b"\\n"
+                        del pending[:1]
+                    output_queue.put(piece)
+            if pending:
+                output_queue.put(bytes(pending))
+        finally:
+            output_queue.put(None)
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    reached_eof = False
+    try:
+        while not reached_eof:
+            if deadline is not None and time.monotonic() >= deadline and process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                raise TimeoutError(
+                    f"Command timed out after {timeout}s: {' '.join(command)}. "
+                    f"Recent output: {redact(''.join(captured)[-3000:])}"
+                )
+            try:
+                item = output_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if item is None:
+                reached_eof = True
+                continue
+            text_piece = item.decode("utf-8", errors="replace")
+            safe_piece = redact(text_piece)
+            captured.append(text_piece)
+            if text_piece.endswith("\\r") and not text_piece.endswith("\\r\\n"):
+                print("\\r" + safe_piece.rstrip("\\r"), end="", flush=True)
+            else:
+                print(safe_piece, end="" if safe_piece.endswith("\\n") else "\\n", flush=True)
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+        reader.join(timeout=2)
+        process.stdout.close()
+
+    output = redact("".join(captured))
+    completed = subprocess.CompletedProcess(command, process.returncode, output, None)
+    if check and completed.returncode != 0:
+        raise RuntimeError(
+            f"Command failed ({completed.returncode}): {' '.join(command)}\\n"
+            + output[-5000:]
+        )
+    return completed
 
 
 def _gpu_names() -> list[str]:

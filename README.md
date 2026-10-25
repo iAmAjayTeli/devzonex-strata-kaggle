@@ -225,7 +225,7 @@ Keep the Kaggle runtime and tunnel running while using OpenCode. Quick Tunnel UR
 | Cache upload shows only “Preparing … files” | The currently running notebook may still have the older helper imported, which buffers Kaggle CLI output. Don't interrupt an active upload. The latest helper streams Kaggle upload progress and emits a 30-second heartbeat if the CLI is silent; rerun the helper-load cell before another cache upload. |
 | Model download slow | Check local disk space, network, model size, and remaining session time. |
 | Cache upload skipped | Check the explicit model-license confirmation and upload logs. |
-| Runtime cache failed | Confirm archive, checksum, manifest, and environment compatibility. |
+| Runtime cache fails with `Text file busy` | A Strata Python executable is still in use while restoring. Rerun the helper-loading cell to get the latest version; it reuses a matching installed runtime or stops Strata and extracts to staging before replacing files. Then rerun the restore cell. |
 | Tunnel unavailable | Confirm local health, `cloudflared` is running, and the URL is current. |
 | OpenCode 401 | Check the local key file and provider config without printing the key. |
 | OpenCode hangs | Test authenticated `/v1/models` and `/v1/chat/completions`, inspect logs, and check model context limits. |

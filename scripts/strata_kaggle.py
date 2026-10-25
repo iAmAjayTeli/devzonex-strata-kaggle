@@ -234,7 +234,8 @@ def _copy_verified(src: Path, dst: Path) -> tuple[int, bool]:
     return expected, True
 
 
-def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8) -> bool:
+def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
+                        family: str | None = None, variant: str | None = None) -> bool:
     ds = find_attached_dataset(owner, slug, "manifest.json")
     if not ds:
         log("Model cache not attached; Strata will download the selected model on first launch.")
@@ -246,6 +247,12 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8)
     if manifest.get("format") != "devzonex.strata-model-cache.v1":
         log("Unrecognized model cache manifest; not restoring it.")
         return False
+    requested = {"family": family, "variant": variant}
+    saved = manifest.get("model", {})
+    if family and saved.get("family") != family:
+        raise RuntimeError("Attached model cache family does not match the selected family.")
+    if variant and saved.get("variant") != variant:
+        raise RuntimeError("Attached model cache variant does not match the selected variant.")
     entries = manifest.get("files", [])
     if not entries:
         raise RuntimeError("Model cache manifest is empty.")
@@ -272,10 +279,39 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8)
     return True
 
 
+def _cached_model_path(data_dir: Path, family: str, variant: str) -> Path | None:
+    """Find a compatible-looking local GGUF to prevent Strata redownloading restored models."""
+    models_dir = data_dir / "models"
+    if not models_dir.is_dir():
+        return None
+    files = [p for p in models_dir.rglob("*.gguf") if p.is_file() and not p.name.endswith(".part")]
+    if not files:
+        return None
+    expected_folder = (family + "-" + variant).lower().replace("_", "-")
+    matching = [p for p in files if expected_folder in p.parent.as_posix().lower().replace("_", "-")]
+    if matching:
+        return max(matching, key=lambda p: p.stat().st_size).parent
+    parent_dirs = {p.parent for p in files}
+    if len(parent_dirs) == 1:
+        return next(iter(parent_dirs))
+    raise RuntimeError(
+        "Multiple cached GGUF model folders were found under " + str(models_dir) +
+        ". Keep one selected model in this cache or choose a dedicated MODEL_DATA_DIR."
+    )
+
+
+def _model_source_args(data_dir: Path, family: str, variant: str) -> list[str]:
+    cached = _cached_model_path(data_dir, family, variant)
+    if cached:
+        log("Using local model files at " + str(cached) + " (avoiding a new model download).")
+        return ["--model-path", str(cached)]
+    return ["--data-dir", str(data_dir)]
+
+
 def run_plan(family: str, variant: str, context: str, vision: str,
              gpu_list: str, data_dir: Path) -> str:
     cmd = ["strata", "launch", "--plan", "--family", family, "--model", variant,
-           "--data-dir", str(data_dir), "--context", context, "--vision", vision,
+           *_model_source_args(data_dir, family, variant), "--context", context, "--vision", vision,
            "--mtp", "off", "--tune", "skip", "--access", "cloudflare",
            "--port", "8080", "--gpu", gpu_list]
     result = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -290,7 +326,7 @@ def run_plan(family: str, variant: str, context: str, vision: str,
 def launch_strata(family: str, variant: str, context: str, vision: str,
                   gpu_list: str, data_dir: Path) -> str:
     cmd = ["strata", "launch", "--family", family, "--model", variant,
-           "--data-dir", str(data_dir), "--context", context, "--vision", vision,
+           *_model_source_args(data_dir, family, variant), "--context", context, "--vision", vision,
            "--mtp", "off", "--tune", "skip", "--access", "cloudflare",
            "--port", "8080", "--gpu", gpu_list, "--yes", "--no-tui"]
     log("Launching Strata. First-time model/engine downloads may take a while.")
@@ -490,9 +526,14 @@ def upload_model_cache(data_dir: Path, username: str, slug: str, family: str, va
     if not license_confirmed:
         log("Skipped model upload. Confirm the model terms and enable the explicit license flag first.")
         return False
-    files = sorted(p for p in data_dir.rglob("*") if p.is_file() and not p.is_symlink() and not p.name.endswith(".part"))
+    allowed_roots = {"models", "packs", "mtp"}
+    files = sorted(
+        p for p in data_dir.rglob("*")
+        if p.is_file() and not p.is_symlink() and not p.name.endswith(".part")
+        and p.relative_to(data_dir).parts and p.relative_to(data_dir).parts[0] in allowed_roots
+    )
     if not files:
-        raise RuntimeError("No model files found under " + str(data_dir) + ".")
+        raise RuntimeError("No model/packs/mtp files found under " + str(data_dir) + ".")
     attached = find_attached_dataset(username, slug, "manifest.json")
     sizes = {p.relative_to(data_dir).as_posix(): p.stat().st_size for p in files}
     if attached and not force:

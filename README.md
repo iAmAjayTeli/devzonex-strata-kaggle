@@ -100,6 +100,10 @@ VISION = "off"
 GPU_IDS = ""  # blank = auto-detect visible GPUs
 MODEL_DATA_DIR = "/root/strata-local"
 
+# "symlink" avoids an extra local 80-GiB copy; mounted reads can be slower.
+# Use "copy" if launch/loading from the Kaggle input mount is too slow.
+MODEL_RESTORE_MODE = "symlink"
+
 UPLOAD_CACHES = True
 I_CONFIRM_MODEL_LICENSE_AND_PRIVATE_STORAGE = False
 FORCE_UPDATE_MODEL_CACHE = False
@@ -176,7 +180,12 @@ For long executions, Kaggle's **Save Version → Save & Run All** workflow can r
 
 The model dataset uses a `manifest.json`; the runtime dataset contains `strata-runtime-cache.bin`, `strata-runtime-cache.bin.sha256`, and `runtime-manifest.json`.
 
-The notebook verifies file sizes/checksums and restores the data from Kaggle's read-only mount into local storage. **The local copy can take several minutes for a very large model.** This workflow avoids re-downloading from the original model host and Strata component server; it doesn't eliminate all file copying.
+The notebook verifies the manifest and file sizes, then uses the `MODEL_RESTORE_MODE` option:
+
+- `"symlink"` (recommended when avoiding the *second* 80-GiB copy): creates links in `/root/strata-local` to the attached read-only Kaggle dataset. This avoids copying those bytes to local storage again, but model loading or reads can be slower because the files are on the input mount.
+- `"copy"`: copies the model files into local storage. It takes extra time and disk space, but usually gives Strata faster local file access. This is the fallback if symlink mode launches too slowly or has I/O problems.
+
+**Important:** adding a dataset as Kaggle Input still requires Kaggle to stage/make the dataset files available to the fresh runtime (the UI progress notification is for that step). No notebook option can eliminate that initial data transfer; symlink mode only avoids an additional local copy after the input is attached. The benefit of the private cache is that the model is served from your saved Kaggle dataset instead of being downloaded again from its original model host.
 
 Runtime caches may not be compatible after a Strata, engine, OS, CUDA, or GPU change. Review the plan again and allow Strata to fetch a compatible component when needed.
 

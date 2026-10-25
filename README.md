@@ -19,8 +19,8 @@ This project turns our Strata + Qwen3.8-Flash-Next Gyro-S setup into a guided no
 | **1 · Preflight** | Checks Kaggle Secrets, GPU visibility, Internet, attached datasets, and Strata version. |
 | **2 · Choose a model** | Select a Strata-supported family/variant, context, vision option, and GPU list. |
 | **3 · Restore or install** | Restores your private caches when attached; otherwise installs Strata and lets it fetch compatible files. |
-| **4 · Review plan** | Runs Strata's plan command before downloading large files. |
-| **5 · Start securely** | Starts Strata in Cloudflare access mode and creates/reuses a temporary Quick Tunnel. |
+| **4 · Review plan** | Streams Strata's plan output into the notebook so you can review compatibility before downloading large files. |
+| **5 · Start securely** | Streams Strata launch logs into the notebook, starts Cloudflare access mode, and creates/reuses a temporary Quick Tunnel. |
 | **6 · Verify** | Checks API-key enforcement, model listing, health, and a short authenticated generation. |
 | **7 · Cache** | Optionally uploads model files and the Strata terminal/engine into separate private datasets you own. |
 | **8 · OpenCode** | Prints the temporary HTTPS base URL, model ID, and provider configuration snippet. |

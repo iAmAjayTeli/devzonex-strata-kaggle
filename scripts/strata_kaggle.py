@@ -296,6 +296,14 @@ def safe_extract_runtime(archive: Path, destination: Path) -> None:
         tf.extractall(destination, members=members, filter="data")
 
 
+
+def _remove_existing_path(path: Path) -> None:
+    """Remove a directory/file/symlink safely before atomically installing staged runtime files."""
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.exists():
+        shutil.rmtree(path)
+
 def restore_runtime_cache(owner: str, slug: str) -> bool:
     ds = find_attached_dataset(owner, slug, "strata-runtime-cache.bin")
     if not ds:
@@ -338,8 +346,8 @@ def restore_runtime_cache(owner: str, slug: str) -> bool:
     )
     if (existing_version and cached_version and existing_version == cached_version
             and STRATA_BIN.exists() and engine_cache_ok):
-        log("A matching Strata terminal and engine are already installed; skipping extraction to avoid overwriting a busy Python executable.")
-        return False
+        log("A matching Strata terminal and engine are already installed; reusing them without extraction to avoid overwriting a busy Python executable.")
+        return True
 
     if shutil.which("strata"):
         log("Stopping any existing Strata server before replacing its runtime files…")
@@ -374,8 +382,7 @@ def restore_runtime_cache(owner: str, slug: str) -> bool:
     # Replace only after staging has extracted and validated successfully.
     for part in ("terminal", "components"):
         old_path = STRATA_ROOT / part
-        if old_path.exists() or old_path.is_symlink():
-            shutil.rmtree(old_path, ignore_errors=False)
+        _remove_existing_path(old_path)
         os.replace(staging_root / part, old_path)
     staged_tools = staging_root / "tools"
     if staged_tools.is_dir():

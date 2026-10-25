@@ -98,11 +98,40 @@ def install_kaggle_cli(env: dict[str, str] | None = None) -> None:
     run_command(["kaggle", "--version"], timeout=60, env=env)
 
 
+def _directory_snapshot(path: Path) -> tuple[int, int]:
+    """Return file count and total bytes without following symlinks."""
+    count = 0
+    size = 0
+    if not path.exists():
+        return count, size
+    for root, dirs, files in os.walk(path, followlinks=False):
+        dirs[:] = [d for d in dirs if not (Path(root) / d).is_symlink()]
+        for name in files:
+            file_path = Path(root) / name
+            try:
+                if file_path.is_symlink():
+                    continue
+                stat = file_path.stat()
+                count += 1
+                size += stat.st_size
+            except OSError:
+                continue
+    return count, size
+
+
 def run_streaming(command: list[str], *, check: bool = True, timeout: int | None = None,
-                  env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    """Run a command while streaming stdout/stderr to the notebook, including CR progress bars."""
+                  env: dict[str, str] | None = None,
+                  heartbeat_interval: float | None = None,
+                  heartbeat_label: str = "Command",
+                  progress_paths: list[Path] | None = None) -> subprocess.CompletedProcess[str]:
+    """Run a command while streaming output and reporting real directory-size heartbeats."""
+    child_env = os.environ.copy()
+    if env:
+        child_env.update(env)
+    child_env.setdefault("PYTHONUNBUFFERED", "1")
+    child_env.setdefault("PYTHONIOENCODING", "utf-8")
     process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=child_env,
         bufsize=8192, start_new_session=True,
     )
     if process.stdout is None:
@@ -138,6 +167,8 @@ def run_streaming(command: list[str], *, check: bool = True, timeout: int | None
     reader = threading.Thread(target=pump, daemon=True)
     reader.start()
     deadline = time.monotonic() + timeout if timeout is not None else None
+    last_heartbeat = time.monotonic()
+    previous_snapshots: dict[str, tuple[int, int]] = {}
     reached_eof = False
     try:
         while not reached_eof:
@@ -155,6 +186,24 @@ def run_streaming(command: list[str], *, check: bool = True, timeout: int | None
             try:
                 item = output_queue.get(timeout=0.5)
             except queue.Empty:
+                now = time.monotonic()
+                if heartbeat_interval and now - last_heartbeat >= heartbeat_interval and process.poll() is None:
+                    details = []
+                    for path in progress_paths or []:
+                        count, size = _directory_snapshot(path)
+                        label = str(path)
+                        current = (count, size)
+                        previous = previous_snapshots.get(label)
+                        change = ""
+                        if previous is not None:
+                            delta = size - previous[1]
+                            if delta > 0:
+                                change = f", +{delta / (1024**2):.1f} MiB since last check"
+                        details.append(f"{path}: {count} files, {size / (1024**3):.2f} GiB{change}")
+                        previous_snapshots[label] = current
+                    print(f"[DevZoneX Strata] {heartbeat_label} still running ({int(now - (deadline - timeout)) if deadline and timeout else int(now - last_heartbeat)}s elapsed)."
+                          + (("\\n  " + "\\n  ".join(details)) if details else ""), flush=True)
+                    last_heartbeat = now
                 continue
             if item is None:
                 reached_eof = True
@@ -405,7 +454,9 @@ def run_plan(family: str, variant: str, context: str, vision: str,
            *_model_source_args(data_dir, family, variant), "--context", context, "--vision", vision,
            "--mtp", "off", "--tune", "skip", "--access", "cloudflare",
            "--port", "8080", "--gpu", gpu_list]
-    result = run_streaming(cmd, timeout=300, check=False)
+    result = run_streaming(cmd, timeout=300, check=False,
+                           heartbeat_interval=15, heartbeat_label="Strata launch plan",
+                           progress_paths=[data_dir, STRATA_ROOT / "components"])
     output = result.stdout or ""
     if result.returncode:
         raise RuntimeError("Strata plan failed. Choose a supported family/model variant.")
@@ -419,7 +470,9 @@ def launch_strata(family: str, variant: str, context: str, vision: str,
            "--mtp", "off", "--tune", "skip", "--access", "cloudflare",
            "--port", "8080", "--gpu", gpu_list, "--yes", "--no-tui"]
     log("Launching Strata. First-time model/engine downloads may take a while.")
-    result = run_streaming(cmd, timeout=3600, check=False)
+    result = run_streaming(cmd, timeout=3600, check=False,
+                           heartbeat_interval=20, heartbeat_label="Strata model/engine launch",
+                           progress_paths=[data_dir, STRATA_ROOT / "components"])
     output = result.stdout or ""
     if result.returncode:
         raise RuntimeError("Strata launch failed. Inspect the redacted output above.")

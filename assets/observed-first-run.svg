@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="410" viewBox="0 0 1000 410" role="img" aria-labelledby="title desc">
+  <title id="title">Manually observed Strata first-run results</title>
+  <desc id="desc">Strata loaded Qwen3.8 Flash Next Gyro-S on two Tesla T4 GPUs, its local health endpoint reported loaded true, a temporary Cloudflare URL was registered, and private model/runtime cache datasets were created. Fresh-session restore is still being validated.</desc>
+  <rect width="1000" height="410" rx="22" fill="#f7f4ee"/>
+  <text x="32" y="42" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="700" fill="#252321">Observed first-run results</text>
+  <text x="32" y="66" font-family="Inter,Arial,sans-serif" font-size="13" fill="#65615b">Values from the DevZoneX manual Kaggle run · not a guarantee for every account or GPU</text>
+  <rect x="30" y="91" width="460" height="126" rx="16" fill="#252321"/>
+  <text x="54" y="124" font-family="Inter,Arial,sans-serif" font-size="12" letter-spacing="1.2" fill="#bdb6ab">MODEL</text>
+  <text x="54" y="154" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" fill="#ffffff">Qwen3.8-Flash-Next Gyro-S</text>
+  <text x="54" y="181" font-family="Inter,Arial,sans-serif" font-size="13" fill="#e5dfd6">Strata 0.2.6 · Context 32K · Text-only</text>
+  <rect x="350" y="105" width="115" height="30" rx="15" fill="#d97757"/>
+  <text x="407" y="124" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#ffffff">LOADED: TRUE</text>
+  <rect x="510" y="91" width="460" height="126" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+  <text x="534" y="124" font-family="Inter,Arial,sans-serif" font-size="12" letter-spacing="1.2" fill="#8f6b5c">GPU RUNTIME</text>
+  <text x="534" y="157" font-family="Inter,Arial,sans-serif" font-size="24" font-weight="700" fill="#252321">2 × NVIDIA Tesla T4</text>
+  <text x="534" y="184" font-family="Inter,Arial,sans-serif" font-size="14" fill="#65615b">29 / 30 GiB VRAM allocated in dashboard</text>
+  <rect x="30" y="236" width="292" height="108" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+  <text x="52" y="267" font-family="Inter,Arial,sans-serif" font-size="12" fill="#8f6b5c">MODEL CACHE</text>
+  <text x="52" y="296" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="700" fill="#252321">85.83 GB</text>
+  <text x="52" y="322" font-family="Inter,Arial,sans-serif" font-size="12" fill="#65615b">Private dataset · Version 1</text>
+  <rect x="354" y="236" width="292" height="108" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+  <text x="376" y="267" font-family="Inter,Arial,sans-serif" font-size="12" fill="#8f6b5c">RUNTIME CACHE</text>
+  <text x="376" y="296" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="700" fill="#252321">1.36 GB</text>
+  <text x="376" y="322" font-family="Inter,Arial,sans-serif" font-size="12" fill="#65615b">Private dataset · Version 2</text>
+  <rect x="678" y="236" width="292" height="108" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+  <text x="700" y="267" font-family="Inter,Arial,sans-serif" font-size="12" fill="#8f6b5c">REMOTE ACCESS</text>
+  <text x="700" y="296" font-family="Inter,Arial,sans-serif" font-size="20" font-weight="700" fill="#252321">Cloudflare HTTPS</text>
+  <text x="700" y="322" font-family="Inter,Arial,sans-serif" font-size="12" fill="#65615b">Temporary tunnel connected</text>
+  <circle cx="40" cy="376" r="6" fill="#d97757"/>
+  <text x="54" y="381" font-family="Inter,Arial,sans-serif" font-size="12" fill="#65615b">Fresh-session cache restore and full OpenCode round-trip should still be tested separately.</text>
+</svg>

@@ -310,7 +310,9 @@ def restore_runtime_cache(owner: str, slug: str) -> bool:
         expected = checksum.read_text(encoding="utf-8").strip().split()[0]
         if _sha256(archive) != expected:
             raise RuntimeError("Runtime cache checksum mismatch; refusing extraction.")
+
     manifest = ds / "runtime-manifest.json"
+    meta: dict[str, Any] = {}
     if manifest.is_file():
         meta = json.loads(manifest.read_text(encoding="utf-8"))
         if meta.get("machine") and meta["machine"] != platform.machine():
@@ -320,14 +322,78 @@ def restore_runtime_cache(owner: str, slug: str) -> bool:
         current_gpus = _gpu_names()
         if saved_gpus and current_gpus and saved_gpus != current_gpus:
             log("GPU differs from cache; restoring terminal but Strata may need a compatible engine.")
-    log("Restoring Strata terminal and engine cache…")
-    safe_extract_runtime(archive, STRATA_ROOT)
+
+    # Avoid overwriting an executable currently being used by a Strata service/CLI.
+    # If the installed runtime matches this cache, reuse it without extracting over it.
+    os.environ["PATH"] = "/root/.local/bin:" + os.environ.get("PATH", "")
+    existing_version = None
+    if shutil.which("strata"):
+        probe = subprocess.run(["strata", "--version"], text=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, timeout=60, check=False)
+        existing_version = (probe.stdout or "").strip().splitlines()[0] if probe.stdout else None
+    cached_version = str(meta.get("strata_version", "")).strip()
+    engine_dirs = [str(x) for x in meta.get("engine_dirs", [])]
+    engine_cache_ok = bool(engine_dirs) and all(
+        (STRATA_ROOT / "components" / "engine" / name).is_dir() for name in engine_dirs
+    )
+    if (existing_version and cached_version and existing_version == cached_version
+            and STRATA_BIN.exists() and engine_cache_ok):
+        log("A matching Strata terminal and engine are already installed; skipping extraction to avoid overwriting a busy Python executable.")
+        return False
+
+    if shutil.which("strata"):
+        log("Stopping any existing Strata server before replacing its runtime files…")
+        stopped = subprocess.run(["strata", "launch", "--stop"], text=True,
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 timeout=90, check=False)
+        if stopped.stdout and stopped.stdout.strip():
+            print(redact(stopped.stdout), flush=True)
+        # The CLI can report that nothing was running; that is not a failure.
+        time.sleep(1)
+
+    log("Verifying and extracting Strata runtime cache into a staging directory…")
+    staging_root = Path("/root/.local/share/strata-restore-staging")
+    if staging_root.exists():
+        shutil.rmtree(staging_root)
+    staging_root.mkdir(parents=True, exist_ok=True)
+    safe_extract_runtime(archive, staging_root)
+
+    staged_terminal = staging_root / "terminal"
+    staged_components = staging_root / "components"
+    if not staged_terminal.is_dir() or not staged_components.is_dir():
+        shutil.rmtree(staging_root, ignore_errors=True)
+        raise RuntimeError("Runtime archive must contain terminal/ and components/ directories.")
+    staged_bin = staged_terminal / "current" / "bin" / "strata"
+    if not staged_bin.exists():
+        matches = sorted(staged_terminal.glob("*/bin/strata"))
+        if not matches:
+            shutil.rmtree(staging_root, ignore_errors=True)
+            raise RuntimeError("No strata executable found in runtime archive.")
+
+    STRATA_ROOT.mkdir(parents=True, exist_ok=True)
+    # Replace only after staging has extracted and validated successfully.
+    for part in ("terminal", "components"):
+        old_path = STRATA_ROOT / part
+        if old_path.exists() or old_path.is_symlink():
+            shutil.rmtree(old_path, ignore_errors=False)
+        os.replace(staging_root / part, old_path)
+    staged_tools = staging_root / "tools"
+    if staged_tools.is_dir():
+        tools_root = STRATA_ROOT / "tools"
+        tools_root.mkdir(parents=True, exist_ok=True)
+        for tool in staged_tools.iterdir():
+            target = tools_root / tool.name
+            if target.exists() or target.is_symlink():
+                target.unlink()
+            os.replace(tool, target)
+    shutil.rmtree(staging_root, ignore_errors=True)
+
     STRATA_BIN.parent.mkdir(parents=True, exist_ok=True)
     target = STRATA_ROOT / "terminal" / "current" / "bin" / "strata"
     if not target.exists():
         matches = sorted((STRATA_ROOT / "terminal").glob("*/bin/strata"))
         if not matches:
-            raise RuntimeError("No strata executable found in runtime archive.")
+            raise RuntimeError("No strata executable found in restored runtime cache.")
         target = matches[-1]
     STRATA_BIN.unlink(missing_ok=True)
     STRATA_BIN.symlink_to(target)
@@ -338,6 +404,7 @@ def restore_runtime_cache(owner: str, slug: str) -> bool:
         CLOUDFLARED_BIN.parent.mkdir(parents=True, exist_ok=True)
         saved_cloudflared.chmod(0o755)
         CLOUDFLARED_BIN.symlink_to(saved_cloudflared)
+    log("Runtime cache restore completed.")
     return True
 
 

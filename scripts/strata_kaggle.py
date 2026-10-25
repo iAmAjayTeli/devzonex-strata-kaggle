@@ -433,6 +433,8 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
                         continue
                 except OSError:
                     pass
+                # Replace a stale/dangling symlink from a previous mount/session.
+                dst.unlink()
             elif dst.exists():
                 if dst.is_file() and dst.stat().st_size == size:
                     # Keep a valid existing local copy rather than replacing it with a link.

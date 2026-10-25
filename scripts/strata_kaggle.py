@@ -202,7 +202,7 @@ def run_streaming(command: list[str], *, check: bool = True, timeout: int | None
                         details.append(f"{path}: {count} files, {size / (1024**3):.2f} GiB{change}")
                         previous_snapshots[label] = current
                     print(f"[DevZoneX Strata] {heartbeat_label} still running ({int(now - (deadline - timeout)) if deadline and timeout else int(now - last_heartbeat)}s elapsed)."
-                          + (("\\n  " + "\\n  ".join(details)) if details else ""), flush=True)
+                          + (("\n  " + "\n  ".join(details)) if details else ""), flush=True)
                     last_heartbeat = now
                 continue
             if item is None:
@@ -214,7 +214,7 @@ def run_streaming(command: list[str], *, check: bool = True, timeout: int | None
             if text_piece.endswith("\r") and not text_piece.endswith("\r\n"):
                 print("\r" + safe_piece.rstrip("\r"), end="", flush=True)
             else:
-                print(safe_piece, end="" if safe_piece.endswith("\n") else "\\n", flush=True)
+                print(safe_piece, end="" if safe_piece.endswith("\n") else "\n", flush=True)
     finally:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGTERM)
@@ -230,7 +230,7 @@ def run_streaming(command: list[str], *, check: bool = True, timeout: int | None
     completed = subprocess.CompletedProcess(command, process.returncode, output, None)
     if check and completed.returncode != 0:
         raise RuntimeError(
-            f"Command failed ({completed.returncode}): {' '.join(command)}\\n"
+            f"Command failed ({completed.returncode}): {' '.join(command)}\n"
             + output[-5000:]
         )
     return completed

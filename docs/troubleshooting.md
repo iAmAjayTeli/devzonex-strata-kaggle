@@ -6,7 +6,7 @@ Run `strata launch --plan --family FAMILY --model VARIANT` and choose a combinat
 
 ## Runtime cache doesn't restore
 
-Attach your private runtime dataset via Add Input and verify that it contains `strata-runtime-cache.tar`, `strata-runtime-cache.tar.sha256`, and `runtime-manifest.json`. The notebook verifies the checksum before extraction.
+Attach your private runtime dataset via Add Input and verify that it contains `strata-runtime-cache.bin`, `strata-runtime-cache.bin.sha256`, and `runtime-manifest.json`. The notebook verifies the checksum before extraction.
 
 ## Model files are missing
 

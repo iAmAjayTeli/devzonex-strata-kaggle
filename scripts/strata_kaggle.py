@@ -638,15 +638,27 @@ def _upload_create_or_version(stage: Path, username: str, slug: str,
         heartbeat_interval=30, heartbeat_label="Kaggle dataset upload",
     )
     output = redact(result.stdout or "")
-    if result.returncode == 0:
+    lower = output.lower()
+
+    # Some Kaggle CLI versions can print a slug-conflict error but still exit zero.
+    slug_conflict = (
+        "already in use by a dataset" in lower
+        or ("requested slug" in lower and "already" in lower)
+        or "duplicate slug" in lower
+        or "slug is already taken" in lower
+        or "dataset already exists" in lower
+    )
+    if result.returncode == 0 and not slug_conflict:
         log("Upload submitted for " + username + "/" + slug + ". Check Kaggle's processing status.")
         return
-    lower = output.lower()
-    exists = any(x in lower for x in ("already exists", "dataset already", "duplicate slug",
-                                       "409 client error", "slug is already taken"))
-    if not exists:
-        raise RuntimeError("Kaggle dataset creation failed: " + output[-4000:])
-    log("Dataset already exists; streaming the new-version upload now.")
+
+    if not slug_conflict:
+        raise RuntimeError(
+            "Kaggle dataset creation failed (exit " + str(result.returncode) + "): "
+            + output[-4000:]
+        )
+
+    log("Dataset slug already exists; uploading a new private dataset version instead.")
     version = run_streaming(
         ["kaggle", "datasets", "version", "-p", str(stage), "-m", message, "--dir-mode", "skip"],
         timeout=7200, env=env, check=False,
@@ -655,8 +667,12 @@ def _upload_create_or_version(stage: Path, username: str, slug: str,
     version_output = redact(version.stdout or "")
     if version.returncode:
         raise RuntimeError("Kaggle dataset version failed: " + version_output[-4000:])
-    log("New private dataset version submitted. Wait for Kaggle processing to finish.")
-
+    version_lower = version_output.lower()
+    if "error" in version_lower and not any(
+        success in version_lower for success in ("upload successful", "version created", "version updated")
+    ):
+        raise RuntimeError("Kaggle reported an error while creating the dataset version: " + version_output[-4000:])
+    log("New version upload submitted for " + username + "/" + slug + ". Wait for Kaggle processing to finish.")
 
 def _clean_stage(stage: Path) -> None:
     if stage.exists():

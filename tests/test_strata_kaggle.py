@@ -68,6 +68,22 @@ class StrataKaggleTests(unittest.TestCase):
         self.assertIn("progress-visible", buffer.getvalue())
         self.assertIn("done", result.stdout)
 
+
+    def test_run_streaming_reports_heartbeat(self):
+        with tempfile.TemporaryDirectory() as td:
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                result = run_streaming(
+                    [sys.executable, "-c", "import time; time.sleep(0.7)"],
+                    timeout=10,
+                    heartbeat_interval=0.1,
+                    heartbeat_label="test launch",
+                    progress_paths=[Path(td)],
+                )
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("test launch still running", buffer.getvalue())
+            self.assertIn("0.00 GiB", buffer.getvalue())
+
     def test_open_code_snippet_has_provider_wrapper_and_no_key(self):
         value = opencode_config_snippet("https://sample.trycloudflare.com", "qwen3.8-flash-next-gyro-gyro-s")
         import json

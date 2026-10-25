@@ -10,7 +10,7 @@ Attach your private runtime dataset via Add Input and verify that it contains `s
 
 ## Model files are missing
 
-Attach your private model dataset. It should contain `manifest.json` and numbered flattened files. The notebook restores files to the paths named in the manifest and verifies sizes.
+Attach your private model dataset. It should contain `manifest.json` and numbered flattened files. The notebook maps the manifest back to model paths. With `MODEL_RESTORE_MODE="symlink"`, it creates links to mounted input files and avoids a second local copy; use `"copy"` if direct reads are too slow. Kaggle still stages the attached dataset into the fresh session.
 
 ## Dataset upload permissions fail
 

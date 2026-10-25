@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Kaggle%20GPU-20BEFF)
 ![Status](https://img.shields.io/badge/status-experimental-orange)
+[![Open in Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://kaggle.com/kernels/welcome?src=https://github.com/iAmAjayTeli/devzonex-strata-kaggle/blob/main/notebooks/Strata_Kaggle_Launcher.ipynb)
 
 **Run a Strata-supported model on a Kaggle GPU, cache the model and Strata runtime in your own private Kaggle Datasets, and connect OpenCode Desktop through a temporary authenticated HTTPS tunnel.**
 
@@ -28,6 +29,16 @@ This project turns our Strata + Qwen3.8-Flash-Next Gyro-S setup into a guided no
 
 ## 🧭 Quick links
 
+[![Open in Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://kaggle.com/kernels/welcome?src=https://github.com/iAmAjayTeli/devzonex-strata-kaggle/blob/main/notebooks/Strata_Kaggle_Launcher.ipynb)
+
+If the badge does not open the notebook import flow, go to [Kaggle Notebooks](https://www.kaggle.com/notebooks/welcome), choose **Load from URL**, and paste:
+
+```text
+https://github.com/iAmAjayTeli/devzonex-strata-kaggle/blob/main/notebooks/Strata_Kaggle_Launcher.ipynb
+```
+
+Opening the notebook imports its code; it does **not** grant access to anyone else's private datasets or secrets.
+
 - **[Open the Kaggle launcher notebook](notebooks/Strata_Kaggle_Launcher.ipynb)**
 - [Kaggle setup checklist](docs/kaggle-setup.md)
 - [OpenCode connection guide](docs/opencode-setup.md)
@@ -37,6 +48,29 @@ This project turns our Strata + Qwen3.8-Flash-Next Gyro-S setup into a guided no
 - [Strata model compatibility](https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md)
 
 ---
+
+## 🗺️ Visual walkthrough
+
+![Strata on Kaggle workflow overview](assets/workflow-overview.svg)
+
+![Summary of the manually observed first-run result](assets/observed-first-run.svg)
+
+These are **workflow/results illustrations**, not raw UI screenshots. The screenshots shared during setup were used to ground the run summary below.
+
+## ✅ Verification status
+
+### Manually observed as working
+
+- **First launch:** Strata reported `Strata is serving` for `qwen3.8-flash-next-gyro-gyro-s`; the local health endpoint reported `"loaded": true`.
+- **Hardware:** the dashboard showed two Tesla T4 GPUs with approximately 29 GiB / 30 GiB VRAM allocated.
+- **Remote tunnel:** Cloudflare Quick Tunnel connected and produced a temporary HTTPS URL.
+- **Model cache upload:** Kaggle showed a private Version 1 model dataset of approximately 85.83 GB with the model and support files.
+- **Runtime cache upload:** Kaggle showed a private Version 2 runtime dataset of approximately 1.36 GB with the archive, checksum, and manifest.
+- **Live progress:** Strata launch and Kaggle upload helpers have been updated to stream command output and periodically print status when a process is quiet.
+
+### Still needs a fresh-session integration check
+
+The full **restore both caches → start Strata → verify authenticated public API → test OpenCode** chain must still pass in a clean Kaggle session before calling the project fully verified. The repository is intentionally marked experimental until that end-to-end test succeeds.
 
 ## ✅ Before you start
 
@@ -185,7 +219,9 @@ The notebook verifies the manifest and file sizes, then uses the `MODEL_RESTORE_
 - `"symlink"` (recommended when avoiding the *second* 80-GiB copy): creates links in `/root/strata-local` to the attached read-only Kaggle dataset. This avoids copying those bytes to local storage again, but model loading or reads can be slower because the files are on the input mount.
 - `"copy"`: copies the model files into local storage. It takes extra time and disk space, but usually gives Strata faster local file access. This is the fallback if symlink mode launches too slowly or has I/O problems.
 
-**Important:** adding a dataset as Kaggle Input still requires Kaggle to stage/make the dataset files available to the fresh runtime (the UI progress notification is for that step). No notebook option can eliminate that initial data transfer; symlink mode only avoids an additional local copy after the input is attached. The benefit of the private cache is that the model is served from your saved Kaggle dataset instead of being downloaded again from its original model host.
+**Why Add Input can still show a download progress bar:** Kaggle must make the selected dataset files available to the fresh runtime; this is a transfer from your Kaggle Dataset storage into that notebook session, not the same as downloading the model again from its original model host. No notebook option can eliminate this input-staging step.
+
+With `MODEL_RESTORE_MODE = "symlink"` (the notebook default), the helper creates links under `/root/strata-local` to the attached read-only `/kaggle/input` files, avoiding a second full 80-GiB copy. Reading the model from the mount may be slower. With `MODEL_RESTORE_MODE = "copy"`, the helper copies the files into local storage, using extra time and disk space but often improving local-read performance. In either mode, wait for Kaggle's input staging and the restore cell to finish before launching Strata. The goal is to avoid downloading the model from its original host again—not to eliminate every transfer.
 
 Runtime caches may not be compatible after a Strata, engine, OS, CUDA, or GPU change. Review the plan again and allow Strata to fetch a compatible component when needed.
 

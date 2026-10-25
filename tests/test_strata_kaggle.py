@@ -5,9 +5,10 @@ import sys
 import tempfile
 import tarfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
-from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet, _cached_model_path, run_streaming
+from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet, _cached_model_path, run_streaming, restore_model_cache
 
 
 class StrataKaggleTests(unittest.TestCase):
@@ -83,6 +84,38 @@ class StrataKaggleTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertIn("test launch still running", buffer.getvalue())
             self.assertIn("0.00 GiB", buffer.getvalue())
+
+
+    def test_restore_model_cache_symlink_mode_avoids_copy(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            input_root = root / "input" / "datasets"
+            dataset = input_root / "test-owner" / "strata-model-gyro-gyro-s"
+            dataset.mkdir(parents=True)
+            payload = b"model-bytes"
+            flattened = dataset / "0001__model.gguf"
+            flattened.write_bytes(payload)
+            manifest = {
+                "format": "devzonex.strata-model-cache.v1",
+                "model": {"family": "gyro", "variant": "gyro-s"},
+                "files": [{
+                    "dataset_name": flattened.name,
+                    "relative_path": "models/gyro-Gyro-S/model.gguf",
+                    "size": len(payload),
+                }],
+            }
+            (dataset / "manifest.json").write_text(__import__("json").dumps(manifest), encoding="utf-8")
+            target_root = root / "local-model"
+            with patch("scripts.strata_kaggle.INPUT_ROOT", input_root):
+                restored = restore_model_cache(
+                    "test-owner", "strata-model-gyro-gyro-s", target_root,
+                    family="gyro", variant="gyro-s", restore_mode="symlink",
+                )
+            linked = target_root / "models" / "gyro-Gyro-S" / "model.gguf"
+            self.assertTrue(restored)
+            self.assertTrue(linked.is_symlink())
+            self.assertEqual(linked.read_bytes(), payload)
+            self.assertEqual(linked.resolve(), flattened.resolve())
 
     def test_open_code_snippet_has_provider_wrapper_and_no_key(self):
         value = opencode_config_snippet("https://sample.trycloudflare.com", "qwen3.8-flash-next-gyro-gyro-s")

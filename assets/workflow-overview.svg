@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="330" viewBox="0 0 1100 330" role="img" aria-labelledby="title desc">
+  <title id="title">Strata on Kaggle workflow</title>
+  <desc id="desc">Configure Kaggle, restore or download the model and engine, launch authenticated Strata and Cloudflare Tunnel, verify the API, then connect OpenCode.</desc>
+  <rect width="1100" height="330" rx="22" fill="#f7f4ee"/>
+  <text x="34" y="42" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="700" fill="#222222">One notebook. A guided setup.</text>
+  <text x="34" y="66" font-family="Inter,Arial,sans-serif" font-size="13" fill="#65615b">Workflow overview · requires your own Kaggle account, GPU availability and secrets</text>
+  <g font-family="Inter,Arial,sans-serif">
+    <rect x="30" y="102" width="190" height="170" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+    <circle cx="56" cy="128" r="14" fill="#d97757"/><text x="56" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">1</text>
+    <text x="48" y="162" font-size="16" font-weight="700" fill="#252321">Configure Kaggle</text>
+    <text x="48" y="186" font-size="12" fill="#65615b">Enable Internet/GPU</text>
+    <text x="48" y="205" font-size="12" fill="#65615b">Add API token Secret</text>
+    <text x="48" y="224" font-size="12" fill="#65615b">Choose supported model</text>
+    <text x="48" y="252" font-size="11" fill="#9a644f">Manual account steps</text>
+    <path d="M223 187 H246" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/><path d="M240 181 L247 187 L240 193" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="252" y="102" width="190" height="170" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+    <circle cx="278" cy="128" r="14" fill="#d97757"/><text x="278" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">2</text>
+    <text x="270" y="162" font-size="16" font-weight="700" fill="#252321">Prepare files</text>
+    <text x="270" y="186" font-size="12" fill="#65615b">Restore private cache</text>
+    <text x="270" y="205" font-size="12" fill="#65615b">or download model</text>
+    <text x="270" y="224" font-size="12" fill="#65615b">and compatible engine</text>
+    <text x="270" y="252" font-size="11" fill="#9a644f">Review launch plan</text>
+    <path d="M445 187 H468" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/><path d="M462 181 L469 187 L462 193" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="474" y="102" width="190" height="170" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+    <circle cx="500" cy="128" r="14" fill="#d97757"/><text x="500" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">3</text>
+    <text x="492" y="162" font-size="16" font-weight="700" fill="#252321">Launch Strata</text>
+    <text x="492" y="186" font-size="12" fill="#65615b">Load the model</text>
+    <text x="492" y="205" font-size="12" fill="#65615b">Enable API-key access</text>
+    <text x="492" y="224" font-size="12" fill="#65615b">Check local health</text>
+    <text x="492" y="252" font-size="11" fill="#9a644f">Loaded = true</text>
+    <path d="M667 187 H690" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/><path d="M684 181 L691 187 L684 193" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="696" y="102" width="175" height="170" rx="16" fill="#ffffff" stroke="#ddd7cb"/>
+    <circle cx="722" cy="128" r="14" fill="#d97757"/><text x="722" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">4</text>
+    <text x="714" y="162" font-size="16" font-weight="700" fill="#252321">Secure tunnel</text>
+    <text x="714" y="186" font-size="12" fill="#65615b">Start Cloudflare</text>
+    <text x="714" y="205" font-size="12" fill="#65615b">Reject requests with</text>
+    <text x="714" y="224" font-size="12" fill="#65615b">no API key (401/403)</text>
+    <text x="714" y="252" font-size="11" fill="#9a644f">Temporary HTTPS URL</text>
+    <path d="M874 187 H897" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/><path d="M891 181 L898 187 L891 193" fill="none" stroke="#d97757" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="903" y="102" width="167" height="170" rx="16" fill="#252321"/>
+    <circle cx="929" cy="128" r="14" fill="#d97757"/><text x="929" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">5</text>
+    <text x="921" y="162" font-size="16" font-weight="700" fill="#ffffff">Use OpenCode</text>
+    <text x="921" y="186" font-size="12" fill="#e0dbd3">Add provider URL</text>
+    <text x="921" y="205" font-size="12" fill="#e0dbd3">Store API key locally</text>
+    <text x="921" y="224" font-size="12" fill="#e0dbd3">Test a short prompt</text>
+    <text x="921" y="252" font-size="11" fill="#e8a58e">Keep Kaggle running</text>
+    <text x="34" y="306" font-family="Inter,Arial,sans-serif" font-size="12" fill="#65615b">First launch downloads files. Add Input restores cache data from Kaggle storage; it may still transfer/copy tens of GB into the session.</text>
+  </g>
+</svg>

@@ -247,7 +247,6 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
     if manifest.get("format") != "devzonex.strata-model-cache.v1":
         log("Unrecognized model cache manifest; not restoring it.")
         return False
-    requested = {"family": family, "variant": variant}
     saved = manifest.get("model", {})
     if family and saved.get("family") != family:
         raise RuntimeError("Attached model cache family does not match the selected family.")

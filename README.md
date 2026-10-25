@@ -212,7 +212,7 @@ Keep the Kaggle runtime and tunnel running while using OpenCode. Quick Tunnel UR
 | Dataset missing | Attach it through Add Input and verify username/slug. |
 | Kaggle API 403 | Check token/account/ownership and whether dataset processing has completed; don't immediately repeat a 1+ GB upload. |
 | Model unsupported | Choose a family/variant supported by the installed Strata release; review the launch plan. |
-| Model download slow | Check local disk space, network, model size, and remaining session time. |
+| Launch cell shows only the first status line | The launch helper used by an already-running cell may buffer output until Strata exits. The latest helper streams logs and progress live; the notebook's helper-load cell now pulls the latest repository version and reloads the module. Rerun that cell before starting a new launch. |\n| Model download slow | Check local disk space, network, model size, and remaining session time. |
 | Cache upload skipped | Check the explicit model-license confirmation and upload logs. |
 | Runtime cache failed | Confirm archive, checksum, manifest, and environment compatibility. |
 | Tunnel unavailable | Confirm local health, `cloudflared` is running, and the URL is current. |

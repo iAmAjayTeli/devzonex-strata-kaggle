@@ -1,0 +1,10 @@
+[project]
+name = "devzonex-strata-kaggle"
+version = "0.1.0"
+description = "Guided Kaggle GPU setup and private cache workflow for Strata-supported models"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.31.0", "kaggle>=2.2.5"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

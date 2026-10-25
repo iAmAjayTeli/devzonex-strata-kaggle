@@ -126,8 +126,8 @@ def run_streaming(command: list[str], *, check: bool = True, timeout: int | None
                     piece = bytes(pending[:split_at + 1])
                     del pending[:split_at + 1]
                     # Combine CRLF into one newline event.
-                    if separator == 13 and pending[:1] == b"\\n":
-                        piece += b"\\n"
+                    if separator == 13 and pending[:1] == b"\n":
+                        piece += b"\n"
                         del pending[:1]
                     output_queue.put(piece)
             if pending:
@@ -162,10 +162,10 @@ def run_streaming(command: list[str], *, check: bool = True, timeout: int | None
             text_piece = item.decode("utf-8", errors="replace")
             safe_piece = redact(text_piece)
             captured.append(text_piece)
-            if text_piece.endswith("\\r") and not text_piece.endswith("\\r\\n"):
-                print("\\r" + safe_piece.rstrip("\\r"), end="", flush=True)
+            if text_piece.endswith("\r") and not text_piece.endswith("\r\n"):
+                print("\r" + safe_piece.rstrip("\r"), end="", flush=True)
             else:
-                print(safe_piece, end="" if safe_piece.endswith("\\n") else "\\n", flush=True)
+                print(safe_piece, end="" if safe_piece.endswith("\n") else "\\n", flush=True)
     finally:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGTERM)

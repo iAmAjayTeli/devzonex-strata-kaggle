@@ -293,7 +293,7 @@ def safe_extract_runtime(archive: Path, destination: Path) -> None:
                 if (not resolved.parts or resolved.parts[0] != name.parts[0]
                         or ".." in resolved.parts):
                     raise RuntimeError("Unsafe cross-tree link in runtime archive: " + member.name)
-        tf.extractall(destination, members=members)
+        tf.extractall(destination, members=members, filter="data")
 
 
 def restore_runtime_cache(owner: str, slug: str) -> bool:

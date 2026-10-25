@@ -632,10 +632,12 @@ def _write_dataset_metadata(stage: Path, username: str, slug: str, title: str, d
 def _upload_create_or_version(stage: Path, username: str, slug: str,
                               env: dict[str, str], message: str) -> None:
     cmd = ["kaggle", "datasets", "create", "-p", str(stage), "--dir-mode", "skip"]
-    result = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=7200, env=env, check=False)
+    log("Uploading dataset files to Kaggle. Progress output will stream below; large uploads may take several minutes.")
+    result = run_streaming(
+        cmd, timeout=7200, env=env, check=False,
+        heartbeat_interval=30, heartbeat_label="Kaggle dataset upload",
+    )
     output = redact(result.stdout or "")
-    print(output, end="" if output.endswith("\n") else "\n")
     if result.returncode == 0:
         log("Upload submitted for " + username + "/" + slug + ". Check Kaggle's processing status.")
         return
@@ -644,12 +646,13 @@ def _upload_create_or_version(stage: Path, username: str, slug: str,
                                        "409 client error", "slug is already taken"))
     if not exists:
         raise RuntimeError("Kaggle dataset creation failed: " + output[-4000:])
-    version = subprocess.run(
+    log("Dataset already exists; streaming the new-version upload now.")
+    version = run_streaming(
         ["kaggle", "datasets", "version", "-p", str(stage), "-m", message, "--dir-mode", "skip"],
-        text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=7200, env=env, check=False,
+        timeout=7200, env=env, check=False,
+        heartbeat_interval=30, heartbeat_label="Kaggle dataset version upload",
     )
     version_output = redact(version.stdout or "")
-    print(version_output, end="" if version_output.endswith("\n") else "\n")
     if version.returncode:
         raise RuntimeError("Kaggle dataset version failed: " + version_output[-4000:])
     log("New private dataset version submitted. Wait for Kaggle processing to finish.")

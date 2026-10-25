@@ -156,15 +156,15 @@ def safe_extract_runtime(archive: Path, destination: Path) -> None:
 
 
 def restore_runtime_cache(owner: str, slug: str) -> bool:
-    ds = find_attached_dataset(owner, slug, "strata-runtime-cache.tar")
+    ds = find_attached_dataset(owner, slug, "strata-runtime-cache.bin")
     if not ds:
         log("Runtime cache not attached; Strata will be installed if needed.")
         return False
-    archive = ds / "strata-runtime-cache.tar"
+    archive = ds / "strata-runtime-cache.bin"
     if not archive.is_file():
         log("Runtime archive missing; skipping runtime restore.")
         return False
-    checksum = ds / "strata-runtime-cache.tar.sha256"
+    checksum = ds / "strata-runtime-cache.bin.sha256"
     if checksum.is_file():
         expected = checksum.read_text(encoding="utf-8").strip().split()[0]
         if _sha256(archive) != expected:
@@ -527,7 +527,7 @@ def upload_runtime_cache(username: str, slug: str, env: dict[str, str], force: b
     if not (STRATA_ROOT / "terminal").exists() or not (STRATA_ROOT / "components").exists():
         log("Runtime upload skipped: terminal/components directory missing.")
         return False
-    attached = find_attached_dataset(username, slug, "strata-runtime-cache.tar")
+    attached = find_attached_dataset(username, slug, "strata-runtime-cache.bin")
     version = subprocess.run(["strata", "--version"], text=True, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, timeout=60, check=False).stdout.strip()
     hw = hardware_summary()
@@ -550,15 +550,15 @@ def upload_runtime_cache(username: str, slug: str, env: dict[str, str], force: b
             pass
     stage = WORKING / "strata-runtime-dataset-stage"
     _clean_stage(stage)
-    archive = stage / "strata-runtime-cache.tar"
+    archive = stage / "strata-runtime-cache.bin"
     log("Packaging Strata terminal and engine cache (model data remains separate)…")
     with tarfile.open(archive, "w:") as tf:
         tf.add(STRATA_ROOT / "terminal", arcname="terminal", recursive=True)
         tf.add(STRATA_ROOT / "components", arcname="components", recursive=True)
         if cloudflared_cmd:
             tf.add(Path(cloudflared_cmd).resolve(), arcname="tools/cloudflared", recursive=False)
-    (stage / "strata-runtime-cache.tar.sha256").write_text(
-        _sha256(archive) + "  strata-runtime-cache.tar\n", encoding="utf-8")
+    (stage / "strata-runtime-cache.bin.sha256").write_text(
+        _sha256(archive) + "  strata-runtime-cache.bin\n", encoding="utf-8")
     meta = {"format": "devzonex.strata-runtime-cache.v1", "strata_version": version,
             **hw, "engine_dirs": engine_dirs, "cloudflared_version": cloudflared_version,
             "contents": ["terminal", "components", "tools/cloudflared (if present)"]}

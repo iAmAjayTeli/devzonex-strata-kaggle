@@ -4,7 +4,7 @@ import tarfile
 import unittest
 from pathlib import Path
 
-from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet
+from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet, _cached_model_path
 
 
 class StrataKaggleTests(unittest.TestCase):
@@ -43,6 +43,16 @@ class StrataKaggleTests(unittest.TestCase):
                 tf.addfile(info)
             with self.assertRaises(RuntimeError):
                 safe_extract_runtime(archive, td_path / "out")
+
+
+    def test_cached_model_path_selects_expected_model(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            model_dir = root / "models" / "gyro-Gyro-S"
+            model_dir.mkdir(parents=True)
+            (model_dir / "model.gguf").write_bytes(b"model")
+            found = _cached_model_path(root, "gyro", "gyro-s")
+            self.assertEqual(found, model_dir)
 
     def test_open_code_snippet_has_provider_wrapper_and_no_key(self):
         value = opencode_config_snippet("https://sample.trycloudflare.com", "qwen3.8-flash-next-gyro-gyro-s")

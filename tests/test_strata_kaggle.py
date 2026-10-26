@@ -1,3 +1,4 @@
+import os
 import hashlib
 import contextlib
 import io

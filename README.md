@@ -63,14 +63,15 @@ These are **workflow/results illustrations**, not raw UI screenshots. The screen
 
 - **First launch:** Strata reported `Strata is serving` for `qwen3.8-flash-next-gyro-gyro-s`; the local health endpoint reported `"loaded": true`.
 - **Hardware:** the dashboard showed two Tesla T4 GPUs with approximately 29 GiB / 30 GiB VRAM allocated.
-- **Remote tunnel:** Cloudflare Quick Tunnel connected and produced a temporary HTTPS URL.
+- **Remote tunnel and API security:** Cloudflare Quick Tunnel connected; the public API rejected a request without a key, and the authenticated API test succeeded.
 - **Model cache upload:** Kaggle showed a private Version 1 model dataset of approximately 85.83 GB with the model and support files.
 - **Runtime cache upload:** Kaggle showed a private Version 2 runtime dataset of approximately 1.36 GB with the archive, checksum, and manifest.
+- **Fresh-session restore and OpenCode:** the maintainer reports that, after attaching the private model/runtime datasets in a fresh Kaggle run, Strata launched and OpenCode connected and returned responses successfully.
 - **Live progress:** Strata launch and Kaggle upload helpers have been updated to stream command output and periodically print status when a process is quiet.
 
-### Still needs a fresh-session integration check
+### Still to validate across more environments
 
-The full **restore both caches → start Strata → verify authenticated public API → test OpenCode** chain must still pass in a clean Kaggle session before calling the project fully verified. The repository is intentionally marked experimental until that end-to-end test succeeds.
+The main end-to-end workflow has been manually verified for the default `gyro / gyro-s` setup. The full six-hour monitoring period has not yet been confirmed to complete uninterrupted, and other model families, GPU types, Strata versions, and Kaggle account configurations need separate tests. The project remains experimental for those broader environments.
 
 ## ✅ Before you start
 

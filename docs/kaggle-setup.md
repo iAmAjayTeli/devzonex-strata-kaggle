@@ -29,7 +29,7 @@ The quickest entry point is the **Open in Kaggle** badge at the top of the [repo
 
 Attaching a dataset makes files available to a new Kaggle runtime. Kaggle may show a notification such as `Downloaded 14/16 files: ... GiB / ... GiB`; that's the input data being staged from your Kaggle Dataset storage into the session, not a download from the original model host.
 
-The notebook's `MODEL_RESTORE_MODE` defaults to `"symlink"`, which links into the read-only input mount and avoids a second full local copy. Reads may be slower. Set `MODEL_RESTORE_MODE = "copy"` when local model reads are too slow; this uses extra time and disk space but copies files to `/root/strata-local`.
+The notebook defaults to `MODEL_RESTORE_MODE = "copy"` for this tutorial. It copies model files to `/root/strata-local`, which uses extra restore time and disk space but may improve local reads. Set `MODEL_RESTORE_MODE = "symlink"` to avoid the second local copy; reads from Kaggle's input mount may be slower. Kaggle still stages the attached dataset into a new session in either mode.
 
 No restore mode eliminates Kaggle's input staging or guarantees instant startup. The cache prevents the original-source model download when the attached files match the requested model; it does not turn the dataset into a permanently attached disk across all sessions.
 

@@ -170,9 +170,9 @@ VISION = "off"
 GPU_IDS = ""  # blank = auto-detect visible GPUs
 MODEL_DATA_DIR = "/root/strata-local"
 
-# "symlink" avoids an extra local 80-GiB copy; mounted reads can be slower.
-# Use "copy" if launch/loading from the Kaggle input mount is too slow.
-MODEL_RESTORE_MODE = "symlink"
+# "copy" uses extra local disk/time but may improve local reads (default for this tutorial).
+# Use "symlink" to avoid the second local copy; input-mount reads may be slower.
+MODEL_RESTORE_MODE = "copy"
 
 UPLOAD_CACHES = True
 I_CONFIRM_MODEL_LICENSE_AND_PRIVATE_STORAGE = False
@@ -252,12 +252,12 @@ The model dataset uses a `manifest.json`; the runtime dataset contains `strata-r
 
 The notebook verifies the manifest and file sizes, then uses the `MODEL_RESTORE_MODE` option:
 
-- `"symlink"` (recommended when avoiding the *second* 80-GiB copy): creates links in `/root/strata-local` to the attached read-only Kaggle dataset. This avoids copying those bytes to local storage again, but model loading or reads can be slower because the files are on the input mount.
-- `"copy"`: copies the model files into local storage. It takes extra time and disk space, but usually gives Strata faster local file access. This is the fallback if symlink mode launches too slowly or has I/O problems.
+- `"copy"` (default for this tutorial): copies the model files into `/root/strata-local`. This takes extra restore time and disk space, but may provide faster local file access.
+- `"symlink"`: creates links in `/root/strata-local` to the attached read-only Kaggle dataset, avoiding the second full local copy. Reads from the input mount may be slower.
 
 **Why Add Input can still show a download progress bar:** Kaggle must make the selected dataset files available to the fresh runtime; this is a transfer from your Kaggle Dataset storage into that notebook session, not the same as downloading the model again from its original model host. No notebook option can eliminate this input-staging step.
 
-With `MODEL_RESTORE_MODE = "symlink"` (the notebook default), the helper creates links under `/root/strata-local` to the attached read-only `/kaggle/input` files, avoiding a second full 80-GiB copy. Reading the model from the mount may be slower. With `MODEL_RESTORE_MODE = "copy"`, the helper copies the files into local storage, using extra time and disk space but often improving local-read performance. In either mode, wait for Kaggle's input staging and the restore cell to finish before launching Strata. The goal is to avoid downloading the model from its original host again—not to eliminate every transfer.
+With `MODEL_RESTORE_MODE = "copy"` (the notebook default), the helper copies files into `/root/strata-local`, using extra restore time and disk space but potentially improving local-read performance. With `MODEL_RESTORE_MODE = "symlink"`, the helper creates links to the attached read-only `/kaggle/input` files and avoids the second full local copy, but reading from the mount may be slower. In either mode, wait for Kaggle's input staging and the restore cell to finish before launching Strata. The goal is to avoid downloading the model from its original host again—not to eliminate every transfer.
 
 Runtime caches may not be compatible after a Strata, engine, OS, CUDA, or GPU change. Review the plan again and allow Strata to fetch a compatible component when needed.
 

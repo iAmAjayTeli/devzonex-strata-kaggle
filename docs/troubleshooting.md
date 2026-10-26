@@ -22,8 +22,8 @@ If the cached Strata/engine build doesn't match the runtime, the helper may skip
 
 Attach your private model dataset. It should contain `manifest.json` and numbered flattened files. The notebook uses the manifest to reconstruct the model paths.
 
-- `MODEL_RESTORE_MODE = "symlink"` creates links under `/root/strata-local` to the mounted, read-only Kaggle input files, avoiding a second full local copy. Direct reads may be slower.
-- `MODEL_RESTORE_MODE = "copy"` copies the files into local storage. This takes extra time/disk space but may improve model loading and reads.
+- `MODEL_RESTORE_MODE = "copy"` (notebook default) copies files into `/root/strata-local`. It takes extra restore time/disk space but may improve local model reads.
+- `MODEL_RESTORE_MODE = "symlink"` links to the mounted, read-only Kaggle input files, avoiding a second full local copy. Direct reads may be slower.
 
 **Why Add Input shows a download percentage:** Kaggle stages the attached dataset into the new runtime. For an 80-GiB model it can show progress such as `Downloaded 14/16 files: 4.5 GiB / 79.94 GiB`. This is a transfer from your Kaggle Dataset storage, not necessarily a download from the original model host. Wait until staging and the restore cell finish. If the model cache restore returns `False`, verify that the dataset slug, username and manifest match your configuration before running Strata.
 

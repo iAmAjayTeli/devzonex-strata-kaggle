@@ -10,6 +10,41 @@
 
 This project turns our Strata + Qwen3.8-Flash-Next Gyro-S setup into a guided notebook. The default example is `gyro / gyro-s`; other choices must be supported by the installed Strata release.
 
+## 🧠 Which model are we running, and why is it hard to run?
+
+The default example is **Qwen3.8-Flash-Next — Gyro-S**, using Strata's `gyro / gyro-s` model family and variant. It is a large **125-billion-parameter sparse Mixture-of-Experts (MoE) model**, with about **6 billion parameters active for each token**. “6B active” does **not** mean the whole model only occupies the memory of a 6B model: its full weights and supporting data still need to be stored and accessed.
+
+Sources: [Strata model guide](https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md) · [Gyro quantization details](https://github.com/Niko1221/Strata/blob/main/docs/GYRO.md) · [NVIDIA's Qwen3.8-Flash-Next architecture overview](https://docs.nvidia.com/dynamo/dev/recipes/qwen-3-8-flash-next).
+
+### Model size and memory at a glance
+
+| Model / format | Download or disk size | Estimated model memory (RAM + VRAM) |
+|---|---:|---:|
+| **Gyro-S (our default)** | **58.5 GB** for the main model file | **27.6 GB combined** |
+| Gyro-M | 92.0 GB | 35 GB combined |
+| Qwen3.8-Flash-Next Q2_0 (standard Strata option) | varies by pack/source | 37.6 GB combined |
+| Qwen3.8-Flash-Next IQ2_XS | varies by pack/source | 39.2 GB combined |
+| Qwen3.8-Flash-Next IQ3_XXS | varies by pack/source | 47.0 GB combined |
+| Qwen3.8-Flash-Next IQ3_S | varies by pack/source | 54.8 GB combined |
+| Higher 4–8-bit Unsloth formats | roughly 94 GB to 136 GB of files, depending on format | roughly 72 GB to 136 GB combined, depending on format |
+
+These are upstream estimates for the **model weights**, not a promise that every format fits every machine. Leave memory for the operating system and other processes. Actual needs depend on context length, engine/cache settings, and which quantization you select. Gyro-S is the smallest option and trades some output quality for lower memory use. See the [official Strata model guide](https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md) for updated estimates and compatibility.
+
+### What hardware are we using in this project?
+
+Our working Kaggle setup used **2 × NVIDIA Tesla T4 GPUs (about 15 GB VRAM each, around 30 GB total VRAM exposed)** plus roughly **31 GB system RAM**. That is a specific observed Kaggle session, not a guarantee that every account will receive the same GPU or RAM.
+
+We use **Strata + the Gyro-S quantization**, rather than trying to load a larger, less-compressed version entirely into GPU memory. Strata manages expert weights across available VRAM and system memory; Gyro-S also keeps its large n-gram/PLE table on disk and reads relevant data as needed. That is why a model with 125B total parameters can be practical on this setup even though it would not fit as a conventional full-weight GPU-only load. The trade-off is that SSD access and memory pressure can reduce speed, and the Gyro-S quantization has lower quality than larger variants.
+
+Our model cache is about **79.94 GiB** because it includes more than the headline GGUF file: model data, expert/dense pack files, tokenizer/support assets, and a path manifest. The separate Strata runtime cache is about **1.3 GiB** in our current setup.
+
+### Why does Kaggle still show “Downloaded” after I attach the dataset?
+
+**Add Input makes the dataset available to the notebook; it does not teleport 80 GiB onto the new runtime.** Kaggle still has to make those attached dataset files available to the session, and this notebook copies the needed files from the read-only `/kaggle/input` mount into local `/root/strata-local` so Strata can use a local model path. The progress such as `14/16 files: 4.5 GiB/79.94 GiB` is dataset transfer/restore progress, not a fresh download of the original model from its source.
+
+The benefit is **persistence and reuse**: future sessions can restore from your Kaggle Dataset instead of fetching the model from the original host and downloading the engine again. The restore still moves data from Kaggle's dataset storage into a fresh runtime, so it can take several minutes. The runtime cache is much smaller; the model cache is the large transfer.
+
+
 > [!WARNING]
 > **Experimental project.** The complete first-run and fresh-session workflow still needs validation on more Kaggle accounts and GPU configurations. Review the Strata launch plan before approving large downloads. Kaggle availability, quotas, GPU types, model licenses, and Strata compatibility vary.
 

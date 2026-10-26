@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet, _cached_model_path, run_streaming, restore_model_cache
+from scripts.strata_kaggle import redact, safe_extract_runtime, _sha256, opencode_config_snippet, _cached_model_path, run_streaming, restore_model_cache, _copy_verified
 
 
 class StrataKaggleTests(unittest.TestCase):
@@ -135,6 +135,67 @@ class StrataKaggleTests(unittest.TestCase):
             self.assertIn("test launch still running", buffer.getvalue())
             self.assertIn("0.00 GiB", buffer.getvalue())
 
+
+    def test_copy_verified_reports_byte_progress_events(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = root / "source.bin"
+            dst = root / "dest.bin"
+            payload = b"progress-bytes-123"
+            src.write_bytes(payload)
+            events = []
+
+            _copy_verified(
+                src,
+                dst,
+                lambda amount, path, event: events.append((amount, path, event)),
+            )
+
+            self.assertEqual(dst.read_bytes(), payload)
+            self.assertEqual(
+                sum(amount for amount, _path, event in events if event == "progress"),
+                len(payload),
+            )
+            self.assertEqual(events[0][2], "start")
+            self.assertEqual(events[-1][2], "complete")
+
+    def test_restore_model_cache_copy_mode_reports_byte_progress(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            input_root = root / "input" / "datasets"
+            dataset = input_root / "test-owner" / "strata-model-gyro-gyro-s"
+            dataset.mkdir(parents=True)
+            payload = b"model-progress-data"
+            flattened = dataset / "0001__model.gguf"
+            flattened.write_bytes(payload)
+            manifest = {
+                "format": "devzonex.strata-model-cache.v1",
+                "model": {"family": "gyro", "variant": "gyro-s"},
+                "files": [{
+                    "dataset_name": flattened.name,
+                    "relative_path": "models/gyro-Gyro-S/model.gguf",
+                    "size": len(payload),
+                }],
+            }
+            (dataset / "manifest.json").write_text(
+                __import__("json").dumps(manifest), encoding="utf-8"
+            )
+            output = io.StringIO()
+            with patch("scripts.strata_kaggle.INPUT_ROOT", input_root):
+                with contextlib.redirect_stdout(output):
+                    restored = restore_model_cache(
+                        "test-owner",
+                        "strata-model-gyro-gyro-s",
+                        root / "local-model",
+                        family="gyro",
+                        variant="gyro-s",
+                        restore_mode="copy",
+                    )
+
+            self.assertTrue(restored)
+            self.assertIn("Model restore:", output.getvalue())
+            self.assertIn("100.0%", output.getvalue())
+            self.assertIn("MiB/s", output.getvalue())
 
     def test_restore_model_cache_symlink_mode_avoids_copy(self):
         with tempfile.TemporaryDirectory() as td:

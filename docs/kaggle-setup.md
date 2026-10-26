@@ -40,3 +40,5 @@ Kaggle controls GPU selection, Internet access, Secrets, dataset visibility, and
 ## Six-hour monitoring
 
 After launch and successful API verification, run the optional supervision cell. It checks the model health and tunnel/auth boundary for up to six hours. This does not override Kaggle's execution limits, quotas, inactivity behavior, or service failures.
+
+In `copy` mode, restoration prints live progress (GiB, percentage, completed files, current copy count, throughput, and elapsed time) rather than waiting for several complete files before displaying an update.

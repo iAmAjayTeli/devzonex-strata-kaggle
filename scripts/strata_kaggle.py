@@ -17,7 +17,7 @@ import sys
 import tarfile
 import time
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Callable
 
 WORKING = Path("/kaggle/working")
 INPUT_ROOT = Path("/kaggle/input/datasets")
@@ -484,24 +484,47 @@ def install_strata_if_missing() -> None:
     run_command(["strata", "--version"], timeout=60)
 
 
-def _copy_verified(src: Path, dst: Path) -> tuple[int, bool]:
+def _copy_verified(
+    src: Path,
+    dst: Path,
+    progress_callback: Callable[[int, Path, str], None] | None = None,
+) -> tuple[int, bool]:
+    """Copy one verified file and optionally report byte-level progress events."""
     expected = src.stat().st_size
     dst.parent.mkdir(parents=True, exist_ok=True)
+    if progress_callback:
+        progress_callback(0, dst, "start")
+
     # Copy mode must materialize symlinked input files into local storage.
     if dst.is_symlink():
         dst.unlink()
     elif dst.is_file() and dst.stat().st_size == expected:
+        if progress_callback:
+            progress_callback(0, dst, "complete")
         return expected, False
+
     temp = dst.with_name(dst.name + ".part")
     temp.unlink(missing_ok=True)
-    with src.open("rb") as inp, temp.open("wb") as out:
-        shutil.copyfileobj(inp, out, length=8 * 1024 * 1024)
-        out.flush()
-        os.fsync(out.fileno())
-    if temp.stat().st_size != expected:
+    try:
+        with src.open("rb") as inp, temp.open("wb") as out:
+            while True:
+                chunk = inp.read(8 * 1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+                if progress_callback:
+                    progress_callback(len(chunk), dst, "progress")
+            out.flush()
+            os.fsync(out.fileno())
+        if temp.stat().st_size != expected:
+            raise RuntimeError("Size verification failed: " + src.name)
+        temp.replace(dst)
+    except Exception:
         temp.unlink(missing_ok=True)
-        raise RuntimeError("Size verification failed: " + src.name)
-    temp.replace(dst)
+        raise
+
+    if progress_callback:
+        progress_callback(0, dst, "complete")
     return expected, True
 
 
@@ -510,7 +533,7 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
                         restore_mode: str = "copy") -> bool:
     """Restore a private cache by copying files locally or symlinking to the Kaggle input mount.
 
-    'copy' duplicates bytes into local storage and is usually faster for model loading.
+    'copy' duplicates bytes into local storage and reports live byte-level progress.
     'symlink' avoids the extra local copy but may be slower because the engine reads the dataset mount.
     Kaggle still has to make attached input dataset files available to the runtime.
     """
@@ -576,16 +599,83 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
         log("Note: Kaggle still stages the attached input dataset; symlink mode avoids only the extra copy to local storage.")
         return True
 
-    futures = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        for src, dst, _size in validated:
-            futures[pool.submit(_copy_verified, src, dst)] = src
-        done = 0
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
-            done += 1
-            if done == len(futures) or done % 3 == 0:
-                log("Model restore progress: " + str(done) + "/" + str(len(futures)) + " files.")
+    # Files already present as regular local files count as restored without re-copying.
+    existing = {
+        str(dst): (dst, size)
+        for _src, dst, size in validated
+        if not dst.is_symlink() and dst.is_file() and dst.stat().st_size == size
+    }
+    state: dict[str, Any] = {
+        "progress_bytes": sum(size for _dst, size in existing.values()),
+        "copied_bytes": 0,
+        "completed": set(existing),
+        "active": set(),
+        "last_report_time": 0.0,
+        "last_report_bytes": 0,
+        "printed": False,
+    }
+    state_lock = threading.Lock()
+    started_at = time.monotonic()
+    report_interval = 1.5
+    report_byte_interval = 512 * 1024 * 1024
+    total_files = len(validated)
+
+    def progress_callback(delta: int, dst: Path, event: str) -> None:
+        now = time.monotonic()
+        with state_lock:
+            key = str(dst)
+            if event == "start":
+                state["active"].add(key)
+            elif event == "progress":
+                state["progress_bytes"] += delta
+                state["copied_bytes"] += delta
+            elif event == "complete":
+                state["active"].discard(key)
+                state["completed"].add(key)
+
+            is_finished = (
+                state["progress_bytes"] >= total
+                and len(state["completed"]) >= total_files
+                and not state["active"]
+            )
+            should_report = (
+                not state["printed"]
+                or now - state["last_report_time"] >= report_interval
+                or state["progress_bytes"] - state["last_report_bytes"] >= report_byte_interval
+                or is_finished
+            )
+            if not should_report:
+                return
+
+            elapsed_seconds = max(now - started_at, 0.001)
+            elapsed = int(elapsed_seconds)
+            elapsed_text = f"{elapsed // 3600:02d}:{(elapsed % 3600) // 60:02d}:{elapsed % 60:02d}"
+            percent = 100.0 if total == 0 else min(100.0, 100 * state["progress_bytes"] / total)
+            speed_mib_s = state["copied_bytes"] / (1024 ** 2) / elapsed_seconds
+            progress_text = (
+                f"[DevZoneX Strata] Model restore: "
+                f"{state['progress_bytes'] / (1024 ** 3):.2f}/{total / (1024 ** 3):.2f} GiB "
+                f"({percent:.1f}%) | {len(state['completed'])}/{total_files} files complete "
+                f"| {len(state['active'])} copying | {speed_mib_s:.1f} MiB/s "
+                f"| {elapsed_text} elapsed"
+            )
+            print("\\r" + progress_text, end="", flush=True)
+            state["last_report_time"] = now
+            state["last_report_bytes"] = state["progress_bytes"]
+            state["printed"] = True
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(_copy_verified, src, dst, progress_callback)
+                for src, dst, _size in validated
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
+    finally:
+        if state["printed"]:
+            print(flush=True)
+
     log("Model cache copied into local storage and size-verified.")
     return True
 

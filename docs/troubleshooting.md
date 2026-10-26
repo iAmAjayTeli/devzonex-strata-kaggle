@@ -64,3 +64,7 @@ A Quick Tunnel exists only while its process/session is active. Use the latest H
 ## Six-hour monitor doesn't complete
 
 The monitor checks local model health and the tunnel's no-key authentication boundary. It does not override Kaggle session limits, quotas, network outages, or runtime shutdown. A notebook may end before six hours if the platform or account limit is reached.
+
+## Model restore progress is quiet
+
+Copy-mode restoration reports byte-level progress, percentage, completed files, active copies, throughput, and elapsed time. If the line appears stationary briefly, a filesystem read or write may be blocked; wait for the next update unless an exception appears. Do not rerun the restore cell while it is actively copying.

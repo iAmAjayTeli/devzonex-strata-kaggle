@@ -235,6 +235,10 @@ class StrataKaggleTests(unittest.TestCase):
         parsed = json.loads(value)
         self.assertIn("strata", parsed)
         self.assertEqual(parsed["strata"]["settings"]["apiKey"], "{file:~/.config/opencode/strata-key.txt}")
+        self.assertEqual(
+            parsed["strata"]["models"]["qwen3.8-flash-next-gyro-gyro-s"]["reasoningEffort"],
+            "none",
+        )
         self.assertNotIn("sk-strata-", value)
 
 

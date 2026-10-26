@@ -9,3 +9,5 @@
 7. Start a fresh OpenCode session after changing provider or context settings.
 
 Keep the key out of GitHub and chat. The Quick Tunnel URL is temporary and changes after tunnel restart.
+
+8. The generated model configuration includes `reasoningEffort: "none"` for the configured model entry.

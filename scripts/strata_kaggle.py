@@ -1056,6 +1056,7 @@ def opencode_config_snippet(public_url: str, model_id: str,
                      "encoding": "none", "timeout": 600000, "headerTimeout": 120000,
                      "chunkTimeout": 300000},
         "models": {model_id: {"name": model_id, "modelID": model_id,
+                              "reasoningEffort": "none",
                               "capabilities": {"tools": True, "input": ["text"], "output": ["text"]},
                               "limit": {"context": 32768, "output": 8192}}},
     }

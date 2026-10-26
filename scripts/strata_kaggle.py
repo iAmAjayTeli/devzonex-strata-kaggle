@@ -659,7 +659,7 @@ def restore_model_cache(owner: str, slug: str, data_dir: Path, workers: int = 8,
                 f"| {len(state['active'])} copying | {speed_mib_s:.1f} MiB/s "
                 f"| {elapsed_text} elapsed"
             )
-            print("\\r" + progress_text, end="", flush=True)
+            print("\r" + progress_text, end="", flush=True)
             state["last_report_time"] = now
             state["last_report_bytes"] = state["progress_bytes"]
             state["printed"] = True

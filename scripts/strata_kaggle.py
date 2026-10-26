@@ -272,8 +272,17 @@ def find_attached_dataset(owner: str, slug: str, marker: str | None = None) -> P
 
 
 def safe_extract_runtime(archive: Path, destination: Path) -> None:
-    """Extract only known runtime paths and reject traversal or cross-tree links."""
+    """Safely extract runtime paths, normalizing internal absolute symlinks.
+
+    Runtime archives created from STRATA_ROOT can contain absolute symlinks
+    such as terminal/current -> /root/.local/share/strata/terminal/<version>.
+    Rewrite those to archive-relative links, but only when the target remains
+    inside STRATA_ROOT and within the same allowed top-level runtime tree.
+    """
+    destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
+    runtime_root = Path(STRATA_ROOT).absolute()
+
     with tarfile.open(archive, "r:") as tf:
         members = tf.getmembers()
         for member in members:
@@ -282,17 +291,61 @@ def safe_extract_runtime(archive: Path, destination: Path) -> None:
                 raise RuntimeError("Unsafe path in runtime archive: " + member.name)
             if not name.parts or name.parts[0] not in {"terminal", "components", "tools"}:
                 raise RuntimeError("Unexpected runtime archive path: " + member.name)
-            if member.issym() or member.islnk():
-                link = PurePosixPath(member.linkname)
-                if link.is_absolute():
-                    raise RuntimeError("Unsafe absolute link in runtime archive: " + member.name)
+
+            if not (member.issym() or member.islnk()):
+                continue
+
+            link_text = member.linkname
+            if os.path.isabs(link_text):
+                # Absolute links are only accepted when their target is inside
+                # the known Strata runtime root. Convert that target back to
+                # a path relative to the archive's top-level tree.
+                absolute_target = Path(os.path.normpath(link_text))
+                try:
+                    archive_target = absolute_target.relative_to(runtime_root)
+                except ValueError as exc:
+                    raise RuntimeError(
+                        "Unsafe absolute link in runtime archive: " + member.name
+                    ) from exc
+
+                resolved = PurePosixPath(archive_target.as_posix())
+                if (
+                    not resolved.parts
+                    or resolved.parts[0] != name.parts[0]
+                    or ".." in resolved.parts
+                ):
+                    raise RuntimeError(
+                        "Unsafe absolute/cross-tree link in runtime archive: "
+                        + member.name
+                    )
+
                 if member.issym():
-                    resolved = PurePosixPath(posixpath.normpath(str(name.parent / link)))
+                    # Symlinks are relative to the link's containing directory.
+                    member.linkname = posixpath.relpath(
+                        resolved.as_posix(),
+                        start=name.parent.as_posix(),
+                    )
                 else:
-                    resolved = PurePosixPath(posixpath.normpath(str(link)))
-                if (not resolved.parts or resolved.parts[0] != name.parts[0]
-                        or ".." in resolved.parts):
-                    raise RuntimeError("Unsafe cross-tree link in runtime archive: " + member.name)
+                    # Tar hard-link targets are relative to archive root.
+                    member.linkname = resolved.as_posix()
+                continue
+
+            link = PurePosixPath(link_text)
+            if member.issym():
+                resolved = PurePosixPath(
+                    posixpath.normpath(str(name.parent / link))
+                )
+            else:
+                resolved = PurePosixPath(posixpath.normpath(str(link)))
+            if (
+                not resolved.parts
+                or resolved.parts[0] != name.parts[0]
+                or ".." in resolved.parts
+            ):
+                raise RuntimeError(
+                    "Unsafe cross-tree link in runtime archive: " + member.name
+                )
+
         tf.extractall(destination, members=members, filter="data")
 
 

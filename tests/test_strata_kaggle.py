@@ -49,6 +49,56 @@ class StrataKaggleTests(unittest.TestCase):
                 safe_extract_runtime(archive, td_path / "out")
 
 
+    def test_runtime_extractor_rewrites_internal_absolute_symlink(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            runtime_root = td_path / "strata-root"
+            archive = td_path / "runtime.tar"
+            with tarfile.open(archive, "w:") as tf:
+                for directory in (
+                    "terminal/0.2.6",
+                    "terminal/0.2.6/bin",
+                ):
+                    info = tarfile.TarInfo(directory)
+                    info.type = tarfile.DIRTYPE
+                    tf.addfile(info)
+
+                binary = tarfile.TarInfo("terminal/0.2.6/bin/strata")
+                payload = b"strata-binary"
+                binary.size = len(payload)
+                tf.addfile(binary, io.BytesIO(payload))
+
+                link = tarfile.TarInfo("terminal/current")
+                link.type = tarfile.SYMTYPE
+                link.linkname = str(runtime_root / "terminal" / "0.2.6")
+                tf.addfile(link)
+
+            destination = td_path / "staging"
+            with patch("scripts.strata_kaggle.STRATA_ROOT", runtime_root):
+                safe_extract_runtime(archive, destination)
+
+            current = destination / "terminal" / "current"
+            self.assertTrue(current.is_symlink())
+            self.assertEqual(os.readlink(current), "0.2.6")
+            self.assertEqual(
+                (current / "bin" / "strata").read_bytes(),
+                b"strata-binary",
+            )
+
+    def test_runtime_extractor_rejects_external_absolute_symlink(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            archive = td_path / "external-link.tar"
+            with tarfile.open(archive, "w:") as tf:
+                link = tarfile.TarInfo("terminal/escape")
+                link.type = tarfile.SYMTYPE
+                link.linkname = "/etc/passwd"
+                tf.addfile(link)
+
+            with patch("scripts.strata_kaggle.STRATA_ROOT", td_path / "strata-root"):
+                with self.assertRaisesRegex(RuntimeError, "Unsafe absolute link"):
+                    safe_extract_runtime(archive, td_path / "out")
+
     def test_cached_model_path_selects_expected_model(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -14,6 +14,8 @@ Attach your private runtime dataset through **Add Input** and verify that it con
 
 The notebook verifies the checksum before extracting the archive. The runtime archive filename ends in `.bin` intentionally so Kaggle doesn't automatically unpack the tar archive during dataset creation.
 
+The current helper safely rewrites absolute symlinks recorded inside the Strata runtime archive (such as `terminal/current`) into relative links during extraction. It still rejects links that point outside the Strata runtime root or cross between `terminal/`, `components/`, and `tools/`. If an existing notebook still raises `Unsafe absolute link in runtime archive`, rerun **Load helper scripts and Kaggle credentials** so it reloads the latest helper from GitHub.
+
 If the cached Strata/engine build doesn't match the runtime, the helper may skip or replace the cached restore and install/fetch a compatible version. Don't assume an older engine is compatible with every Strata release or GPU.
 
 ## Model files are missing or the model appears to download again
